@@ -4,6 +4,10 @@ import static org.sammancoaching.dependencies.TestStatus.NO_TESTS;
 import static org.sammancoaching.dependencies.TestStatus.PASSING_TESTS;
 
 public class Project {
+    
+    private static final String SUCCESS = "success";
+    private static final String FAILURE = "failure";
+
     private final boolean deploysSuccessfully;
     private final TestStatus testStatus;
     private final boolean deploysSuccessfullyToStaging;
@@ -25,20 +29,24 @@ public class Project {
     }
 
     public String runTests() {
-        return testStatus == PASSING_TESTS ? "success" : "failure";
+        boolean testsArePassing = testStatus == PASSING_TESTS;
+        return statusFor(testsArePassing);
     }
 
     public String deploy() {
         return deploy(DeploymentEnvironment.PRODUCTION);
     }
+
     public String deploy(DeploymentEnvironment environment) {
+        boolean deployingToStaging = environment == DeploymentEnvironment.STAGING;
+        boolean deploymentSucceeded = deployingToStaging ? deploysSuccessfullyToStaging : deploysSuccessfully;
+
         switch (environment) {
             case STAGING:
-                return deploysSuccessfullyToStaging ? "success" : "failure";
             case PRODUCTION:
-                return deploysSuccessfully ? "success" : "failure";
+                return statusFor(deploymentSucceeded);
             default:
-                return "failure";
+                return FAILURE;
         }
     }
 
@@ -75,5 +83,9 @@ public class Project {
         public Project build() {
             return new Project(deploysSuccessfully, testStatus, deploysSuccessfullyToStaging, smokeTestStatus);
         }
+    }
+
+    private String statusFor(boolean operationSucceeded) {
+        return operationSucceeded ? SUCCESS : FAILURE;
     }
 }

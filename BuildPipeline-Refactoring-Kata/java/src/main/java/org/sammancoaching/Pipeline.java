@@ -6,6 +6,8 @@ import org.sammancoaching.dependencies.Logger;
 import org.sammancoaching.dependencies.Project;
 
 public class Pipeline {
+    
+    private static final String SUCCESS = "success";
     private final Config config;
     private final Emailer emailer;
     private final Logger log;
@@ -23,39 +25,59 @@ public class Pipeline {
     }
 
     private boolean runTests(Project project) {
-        if (!project.hasTests()) {
+        boolean projectHasNoTests = !project.hasTests();
+        if (projectHasNoTests) {
             log.info("No tests");
             return true;
         }
-        if ("success".equals(project.runTests())) {
+
+        String testResult = project.runTests();
+        boolean testsPassed = isSuccessful(testResult);
+        if (testsPassed) {
             log.info("Tests passed");
             return true;
         }
+
         log.error("Tests failed");
         return false;
     }
 
     private boolean deploy(Project project) {
-        if ("success".equals(project.deploy())) {
+        String deploymentResult = project.deploy();
+        boolean deploymentSucceeded = isSuccessful(deploymentResult);
+        if (deploymentSucceeded) {
             log.info("Deployment successful");
             return true;
         }
+
         log.error("Deployment failed");
         return false;
     }
 
     private void sendEmailSummary(boolean testsPassed, boolean deploySuccessful) {
-        if (!config.sendEmailSummary()) {
+        boolean emailSummaryEnabled = config.sendEmailSummary();
+        if (!emailSummaryEnabled) {
             log.info("Email disabled");
             return;
         }
+
         log.info("Sending email");
+
+        String summaryMessage = buildSummaryMessage(testsPassed, deploySuccessful);
+        emailer.send(summaryMessage);
+    }
+
+    private boolean isSuccessful(String result) {
+        return SUCCESS.equals(result);
+    }
+
+    private String buildSummaryMessage(boolean testsPassed, boolean deploySuccessful) {
         if (!testsPassed) {
-            emailer.send("Tests failed");
-        } else if (deploySuccessful) {
-            emailer.send("Deployment completed successfully");
-        } else {
-            emailer.send("Deployment failed");
+            return "Tests failed";
         }
+        if (deploySuccessful) {
+            return "Deployment completed successfully";
+        }
+        return "Deployment failed";
     }
 }
