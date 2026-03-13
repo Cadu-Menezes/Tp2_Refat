@@ -19,12 +19,17 @@ public class Pipeline {
     }
 
     public void run(Project project) {
-        boolean testsPassed = runTests(project);
-        boolean deploySuccessful = testsPassed && deploy(project);
-        sendEmailSummary(testsPassed, deploySuccessful);
+        PipelineExecutionResult executionResult = executePipeline(project);
+        sendEmailSummary(executionResult);
     }
 
-    private boolean runTests(Project project) {
+    private PipelineExecutionResult executePipeline(Project project) {
+        boolean testsPassed = evaluateTests(project);
+        boolean deploymentSuccessful = testsPassed && executeProductionDeployment(project);
+        return new PipelineExecutionResult(testsPassed, deploymentSuccessful);
+    }
+
+    private boolean evaluateTests(Project project) {
         boolean projectHasNoTests = !project.hasTests();
         if (projectHasNoTests) {
             log.info("No tests");
@@ -42,7 +47,7 @@ public class Pipeline {
         return false;
     }
 
-    private boolean deploy(Project project) {
+    private boolean executeProductionDeployment(Project project) {
         String deploymentResult = project.deploy();
         boolean deploymentSucceeded = isSuccessful(deploymentResult);
         if (deploymentSucceeded) {
@@ -54,7 +59,7 @@ public class Pipeline {
         return false;
     }
 
-    private void sendEmailSummary(boolean testsPassed, boolean deploySuccessful) {
+    private void sendEmailSummary(PipelineExecutionResult executionResult) {
         boolean emailSummaryEnabled = config.sendEmailSummary();
         if (!emailSummaryEnabled) {
             log.info("Email disabled");
@@ -63,7 +68,7 @@ public class Pipeline {
 
         log.info("Sending email");
 
-        String summaryMessage = buildSummaryMessage(testsPassed, deploySuccessful);
+        String summaryMessage = buildSummaryMessage(executionResult);
         emailer.send(summaryMessage);
     }
 
@@ -71,13 +76,31 @@ public class Pipeline {
         return SUCCESS.equals(result);
     }
 
-    private String buildSummaryMessage(boolean testsPassed, boolean deploySuccessful) {
-        if (!testsPassed) {
+    private String buildSummaryMessage(PipelineExecutionResult executionResult) {
+        if (!executionResult.testsPassed()) {
             return "Tests failed";
         }
-        if (deploySuccessful) {
+        if (executionResult.deploymentSuccessful()) {
             return "Deployment completed successfully";
         }
         return "Deployment failed";
+    }
+
+    private static class PipelineExecutionResult {
+        private final boolean testsPassed;
+        private final boolean deploymentSuccessful;
+
+        private PipelineExecutionResult(boolean testsPassed, boolean deploymentSuccessful) {
+            this.testsPassed = testsPassed;
+            this.deploymentSuccessful = deploymentSuccessful;
+        }
+
+        private boolean testsPassed() {
+            return testsPassed;
+        }
+
+        private boolean deploymentSuccessful() {
+            return deploymentSuccessful;
+        }
     }
 }

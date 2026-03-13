@@ -8,28 +8,24 @@ public class Project {
     private static final String SUCCESS = "success";
     private static final String FAILURE = "failure";
 
-    private final boolean deploysSuccessfully;
-    private final TestStatus testStatus;
-    private final boolean deploysSuccessfullyToStaging;
-    private final TestStatus smokeTestStatus;
+    private final DeploymentSettings deploymentSettings;
+    private final TestSettings testSettings;
 
     public static ProjectBuilder builder() {
         return new ProjectBuilder();
     }
 
-    private Project(boolean deploysSuccessfully, TestStatus unitTestStatus, boolean deploysSuccessfullyToStaging, TestStatus smokeTestStatus) {
-        this.deploysSuccessfully = deploysSuccessfully;
-        this.testStatus = unitTestStatus;
-        this.deploysSuccessfullyToStaging = deploysSuccessfullyToStaging;
-        this.smokeTestStatus = smokeTestStatus;
+    private Project(DeploymentSettings deploymentSettings, TestSettings testSettings) {
+        this.deploymentSettings = deploymentSettings;
+        this.testSettings = testSettings;
     }
 
     public boolean hasTests() {
-        return testStatus != NO_TESTS;
+        return testSettings.unitTestStatus != NO_TESTS;
     }
 
     public String runTests() {
-        boolean testsArePassing = testStatus == PASSING_TESTS;
+        boolean testsArePassing = testSettings.unitTestStatus == PASSING_TESTS;
         return statusFor(testsArePassing);
     }
 
@@ -39,7 +35,9 @@ public class Project {
 
     public String deploy(DeploymentEnvironment environment) {
         boolean deployingToStaging = environment == DeploymentEnvironment.STAGING;
-        boolean deploymentSucceeded = deployingToStaging ? deploysSuccessfullyToStaging : deploysSuccessfully;
+        boolean deploymentSucceeded = deployingToStaging
+            ? deploymentSettings.stagingDeploymentSuccessful
+            : deploymentSettings.productionDeploymentSuccessful;
 
         switch (environment) {
             case STAGING:
@@ -51,7 +49,7 @@ public class Project {
     }
 
     public TestStatus runSmokeTests() {
-        return smokeTestStatus;
+        return testSettings.smokeTestStatus;
     }
 
     public static class ProjectBuilder {
@@ -81,7 +79,29 @@ public class Project {
         }
 
         public Project build() {
-            return new Project(deploysSuccessfully, testStatus, deploysSuccessfullyToStaging, smokeTestStatus);
+            DeploymentSettings deploymentSettings = new DeploymentSettings(deploysSuccessfully, deploysSuccessfullyToStaging);
+            TestSettings testSettings = new TestSettings(testStatus, smokeTestStatus);
+            return new Project(deploymentSettings, testSettings);
+        }
+    }
+
+    private static class DeploymentSettings {
+        private final boolean productionDeploymentSuccessful;
+        private final boolean stagingDeploymentSuccessful;
+
+        private DeploymentSettings(boolean productionDeploymentSuccessful, boolean stagingDeploymentSuccessful) {
+            this.productionDeploymentSuccessful = productionDeploymentSuccessful;
+            this.stagingDeploymentSuccessful = stagingDeploymentSuccessful;
+        }
+    }
+
+    private static class TestSettings {
+        private final TestStatus unitTestStatus;
+        private final TestStatus smokeTestStatus;
+
+        private TestSettings(TestStatus unitTestStatus, TestStatus smokeTestStatus) {
+            this.unitTestStatus = unitTestStatus;
+            this.smokeTestStatus = smokeTestStatus;
         }
     }
 
